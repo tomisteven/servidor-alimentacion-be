@@ -1,0 +1,26 @@
+{
+  "name": "plan-alimentacion-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "seed": "node seed.js",
+    "seed-pantry": "node seed-pantry.js",
+    "migrate": "node migrate-house.js",
+    "cleanup": "node cleanup-pantry.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.0.3",
+    "nodemailer": "^9.0.3",
+    "openai": "^4.20.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
