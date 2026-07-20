@@ -7,20 +7,30 @@ try {
   console.warn('No se pudo establecer el servidor DNS personalizado:', error.message);
 }
 
+let cachedConn = null;
+let cachedPromise = null;
+
 const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 15000,
-      socketTimeoutMS: 45000,
-    });
-    console.log(`MongoDB conectado: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(`Error conectando a MongoDB: ${error.message}`);
-    console.error('Verifica que:');
-    console.error('  1. Tu IP esté whitelisted en Atlas (Network Access > Add IP Address)');
-    console.error('  2. El usuario/contraseña sean correctos');
-    console.error('  3. Tengas conexión a internet');
+  if (cachedConn) {
+    return cachedConn;
   }
+
+  if (!cachedPromise) {
+    cachedPromise = mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds instead of 15
+      socketTimeoutMS: 45000,
+    }).then((mongooseInstance) => {
+      cachedConn = mongooseInstance;
+      console.log(`MongoDB conectado: ${mongooseInstance.connection.host}`);
+      return mongooseInstance;
+    }).catch((error) => {
+      cachedPromise = null; // Reset promise so next request can retry
+      console.error(`Error conectando a MongoDB: ${error.message}`);
+      throw error;
+    });
+  }
+
+  return cachedPromise;
 };
 
 export default connectDB;

@@ -16,11 +16,23 @@ import workoutRoutes from './routes/workouts.js';
 import reportRoutes from './routes/reports.js';
 
 dotenv.config();
-connectDB();
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Middleware para asegurar la conexión a la base de datos
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    res.status(500).json({
+      message: 'Error al conectar con la base de datos',
+      error: error.message
+    });
+  }
+});
 
 app.use('/api/auth', authRoutes);
 app.use('/api/recipes', recipeRoutes);
