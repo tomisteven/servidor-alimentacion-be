@@ -1,7 +1,11 @@
 import mongoose from 'mongoose';
 import dns from 'dns';
 
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (error) {
+  console.warn('No se pudo establecer el servidor DNS personalizado:', error.message);
+}
 
 const connectDB = async () => {
   try {
@@ -16,7 +20,6 @@ const connectDB = async () => {
     console.error('  1. Tu IP esté whitelisted en Atlas (Network Access > Add IP Address)');
     console.error('  2. El usuario/contraseña sean correctos');
     console.error('  3. Tengas conexión a internet');
-    process.exit(1);
   }
 };
 
