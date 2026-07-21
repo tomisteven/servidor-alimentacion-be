@@ -1,5 +1,13 @@
 import mongoose from 'mongoose';
 
+const mealEntrySchema = new mongoose.Schema({
+  checked: { type: Boolean, default: false },
+  name: { type: String, default: '' },
+  recipe: { type: mongoose.Schema.Types.ObjectId, ref: 'Recipe', default: null },
+  calories: { type: Number, default: null },
+  isCustom: { type: Boolean, default: false }
+}, { _id: false });
+
 const dailyLogSchema = new mongoose.Schema({
   date: {
     type: Date,
@@ -11,10 +19,11 @@ const dailyLogSchema = new mongoose.Schema({
     required: true
   },
   comidas: {
-    desayuno: { type: Boolean, default: false },
-    almuerzo: { type: Boolean, default: false },
-    merienda: { type: Boolean, default: false },
-    cena: { type: Boolean, default: false }
+    desayuno: { type: mongoose.Schema.Types.Mixed, default: { checked: false, name: '', recipe: null, calories: null, isCustom: false } },
+    almuerzo: { type: mongoose.Schema.Types.Mixed, default: { checked: false, name: '', recipe: null, calories: null, isCustom: false } },
+    merienda: { type: mongoose.Schema.Types.Mixed, default: { checked: false, name: '', recipe: null, calories: null, isCustom: false } },
+    cena: { type: mongoose.Schema.Types.Mixed, default: { checked: false, name: '', recipe: null, calories: null, isCustom: false } },
+    colacion: [{ type: mongoose.Schema.Types.Mixed }]
   },
   actividadFisica: {
     realizada: { type: Boolean, default: false },

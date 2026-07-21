@@ -37,9 +37,19 @@ router.get('/user/:userId', auth, async (req, res) => {
     const totalActivityMinutes = dailyLogs.reduce((sum, l) => sum + (l.actividadFisica?.duracionMinutos || 0), 0);
     const totalWater = dailyLogs.reduce((sum, l) => sum + (l.agua || 0), 0);
     const avgMood = totalLogs > 0 ? (dailyLogs.reduce((sum, l) => sum + (l.humor || 0), 0) / totalLogs).toFixed(1) : 0;
+    let totalCalories = 0;
     const mealsLogged = dailyLogs.reduce((sum, l) => {
       const c = l.comidas || {};
-      return sum + (c.desayuno ? 1 : 0) + (c.almuerzo ? 1 : 0) + (c.merienda ? 1 : 0) + (c.cena ? 1 : 0);
+      const desChecked = typeof c.desayuno === 'object' ? c.desayuno?.checked : !!c.desayuno;
+      const almuChecked = typeof c.almuerzo === 'object' ? c.almuerzo?.checked : !!c.almuerzo;
+      const meriChecked = typeof c.merienda === 'object' ? c.merienda?.checked : !!c.merienda;
+      const cenaChecked = typeof c.cena === 'object' ? c.cena?.checked : !!c.cena;
+      const desCals = typeof c.desayuno === 'object' ? (c.desayuno?.calories || 0) : 0;
+      const almuCals = typeof c.almuerzo === 'object' ? (c.almuerzo?.calories || 0) : 0;
+      const meriCals = typeof c.merienda === 'object' ? (c.merienda?.calories || 0) : 0;
+      const cenaCals = typeof c.cena === 'object' ? (c.cena?.calories || 0) : 0;
+      totalCalories += desCals + almuCals + meriCals + cenaCals;
+      return sum + (desChecked ? 1 : 0) + (almuChecked ? 1 : 0) + (meriChecked ? 1 : 0) + (cenaChecked ? 1 : 0);
     }, 0);
 
     const recentLogs = dailyLogs.slice(0, 7);
@@ -82,6 +92,7 @@ router.get('/user/:userId', auth, async (req, res) => {
         totalWater,
         avgMood,
         mealsLogged,
+        totalCalories,
         streak
       },
       recipesCreated,
