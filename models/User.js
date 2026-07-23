@@ -31,6 +31,20 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'House',
     default: null
+  },
+  preferences: {
+    dietType: { type: String, default: '' },
+    dietGoal: { type: String, default: '' },
+    dailyCalorieTarget: { type: Number, default: null },
+    mealCount: { type: Number, default: null },
+    allergies: [String],
+    intolerances: [String],
+    pathologies: [String],
+    dislikedFoods: [String],
+    favoriteFoods: [String],
+    cuisinePreferences: [String],
+    restrictions: [String],
+    notes: { type: String, default: '' }
   }
 }, { timestamps: true });
 

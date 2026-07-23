@@ -12,6 +12,43 @@ const getClient = () => {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 };
 
+const buildUserContext = (prefs) => {
+  if (!prefs) return '';
+  const parts = [];
+  if (prefs.dietType) parts.push(`Tipo de dieta: ${prefs.dietType}`);
+  if (prefs.dietGoal) parts.push(`Objetivo: ${prefs.dietGoal}`);
+  if (prefs.dailyCalorieTarget) parts.push(`Consume máximo ${prefs.dailyCalorieTarget} kcal por día`);
+  if (prefs.allergies?.length) parts.push(`Alergias: ${prefs.allergies.join(', ')}`);
+  if (prefs.intolerances?.length) parts.push(`Intolerancias: ${prefs.intolerances.join(', ')}`);
+  if (prefs.pathologies?.length) parts.push(`Patologías: ${prefs.pathologies.join(', ')}`);
+  if (prefs.dislikedFoods?.length) parts.push(`NO le gustan: ${prefs.dislikedFoods.join(', ')}`);
+  if (prefs.favoriteFoods?.length) parts.push(`Le gusta especialmente: ${prefs.favoriteFoods.join(', ')}`);
+  if (prefs.cuisinePreferences?.length) parts.push(`Prefiere cocina: ${prefs.cuisinePreferences.join(', ')}`);
+  if (prefs.restrictions?.length) parts.push(`Restricciones: ${prefs.restrictions.join(', ')}`);
+  if (prefs.notes) parts.push(`Notas del usuario: ${prefs.notes}`);
+  return parts.length ? `\n\nPERFIL DEL USUARIO:\n${parts.join('\n')}` : '';
+};
+
+function checkRestrictions(ingredients, prefs) {
+  const warnings = [];
+  if (!prefs || !ingredients || !Array.isArray(ingredients)) return warnings;
+  const restrictions = [];
+  (prefs.allergies || []).forEach(i => restrictions.push({ word: i.toLowerCase(), type: 'Alergia' }));
+  (prefs.intolerances || []).forEach(i => restrictions.push({ word: i.toLowerCase(), type: 'Intolerancia' }));
+  (prefs.dislikedFoods || []).forEach(i => restrictions.push({ word: i.toLowerCase(), type: 'No le gusta' }));
+  (prefs.restrictions || []).forEach(i => restrictions.push({ word: i.toLowerCase(), type: 'Restricción' }));
+  for (const ing of ingredients) {
+    const name = (ing.name || '').toLowerCase();
+    for (const r of restrictions) {
+      if (name.includes(r.word) || r.word.includes(name)) {
+        warnings.push({ type: r.type, ingredient: ing.name, match: r.word });
+        break;
+      }
+    }
+  }
+  return warnings;
+}
+
 router.post('/generate-recipe', auth, async (req, res) => {
   try {
     const client = getClient();
@@ -21,6 +58,9 @@ router.post('/generate-recipe', auth, async (req, res) => {
     const { ingredients, mealType, preferences, recipeStyle, description, pantryIngredients } = req.body;
     const hasIngredients = ingredients && ingredients.length > 0;
     const hasDescription = description && description.trim();
+
+    const userPrefs = req.user.preferences || {};
+    const userContext = buildUserContext(userPrefs);
 
     const styleDesc = recipeStyle ? {
       'facil': 'Receta fácil y rápida, con pocos pasos y técnicas simples.',
@@ -37,15 +77,15 @@ Tiene estos ingredientes disponibles en su despensa: ${pantryIngredients.join(',
 Creá una receta usando principalmente los ingredientes de su despensa. Podés agregar ingredientes básicos adicionales (sal, aceite, condimentos) si hace falta.
 Tipo de comida: ${mealType || 'cualquiera'}
 ${styleDesc ? `Estilo: ${styleDesc}\n` : ''}
-${targetDesc ? `Preferencias: ${targetDesc}\n` : ''}
-`;
+${targetDesc ? `Preferencias: ${targetDesc}\n` : ''}${userContext}`;
     } else {
       prompt = (hasIngredients
         ? `Eres un chef profesional. Crea una receta detallada usando estos ingredientes: ${ingredients.join(', ')}.\n`
         : `Eres un chef profesional. Crea una receta original y deliciosa.\n`) +
         `Tipo de comida: ${mealType || 'cualquiera'}\n` +
         (styleDesc ? `Estilo: ${styleDesc}\n` : '') +
-        (targetDesc ? `Preferencias: ${targetDesc}\n` : '');
+        (targetDesc ? `Preferencias: ${targetDesc}\n` : '') +
+        userContext;
     }
 
     prompt += `\nResponde en el siguiente formato JSON (sin markdown, solo JSON):
@@ -87,13 +127,15 @@ Importante: Incluye las calorías aproximadas de CADA ingrediente segun la canti
       return res.status(500).json({ message: 'Error al procesar la respuesta de la IA', raw: responseText });
     }
 
+    const warnings = checkRestrictions(recipeData.ingredients, userPrefs);
+
     const recipe = await Recipe.create({
       ...recipeData,
       createdBy: req.user._id,
       isAIGenerated: true
     });
 
-    res.status(201).json(recipe);
+    res.status(201).json({ ...recipe.toObject(), warnings });
   } catch (error) {
     if (error.status === 401) {
       return res.status(401).json({ message: 'Error de autenticación con OpenAI. Verifica tu API key.' });
@@ -275,8 +317,10 @@ router.post('/analyze-image', auth, async (req, res) => {
       return res.status(400).json({ message: 'Imagen requerida (base64)' });
     }
 
+    const userPrefs = req.user.preferences || {};
+    const userContext = buildUserContext(userPrefs);
     const userNotes = notes && notes.trim() ? `\n\nInformación adicional del usuario: "${notes.trim()}"` : '';
-    const prompt = `Analizá esta imagen de comida y respondé SOLO con un JSON válido (sin markdown) con esta estructura:${userNotes}
+    const prompt = `Analizá esta imagen de comida y respondé SOLO con un JSON válido (sin markdown) con esta estructura:${userNotes}${userContext}
 {
   "name": "Nombre del plato/comida en español",
   "description": "Breve descripción de lo que se ve en el plato",
@@ -288,7 +332,10 @@ router.post('/analyze-image', auth, async (req, res) => {
     { "name": "ingrediente", "estimatedAmount": "cantidad aproximada", "unit": "unidad" }
   ],
   "mealType": "desayuno/almuerzo/merienda/cena/colacion",
-  "tags": ["tag1", "tag2"]
+  "tags": ["tag1", "tag2"],
+  "warnings": [
+    "Si ves algún ingrediente problemático para el perfil del usuario, describilo acá. Si no hay nada, dejá el array vacío."
+  ]
 }
 
 Sé lo más preciso posible con las calorías y macros estimadas basándote en las porciones visibles. Si no podés determinar algún valor exacto, da una estimación razonable.`;
@@ -317,6 +364,11 @@ Sé lo más preciso posible con las calorías y macros estimadas basándote en l
       return res.status(500).json({ message: 'Error al procesar la respuesta de la IA', raw: responseText });
     }
 
+    const serverWarnings = checkRestrictions(data.ingredients, userPrefs);
+    if (serverWarnings.length > 0) {
+      data.warnings = [...new Set([...(data.warnings || []), ...serverWarnings.map(w => `${w.type}: "${w.ingredient}" contiene "${w.match}"`)])];
+    }
+
     res.json(data);
   } catch (error) {
     if (error.status === 401) {
@@ -337,7 +389,10 @@ router.post('/analyze-text', auth, async (req, res) => {
       return res.status(400).json({ message: 'Texto requerido' });
     }
 
-    const prompt = `Interpretá la siguiente descripción de comida y respondé SOLO con un JSON válido (sin markdown) con esta estructura:
+    const userPrefs = req.user.preferences || {};
+    const userContext = buildUserContext(userPrefs);
+
+    const prompt = `Interpretá la siguiente descripción de comida y respondé SOLO con un JSON válido (sin markdown) con esta estructura:${userContext}
 {
   "name": "Nombre del plato/comida en español",
   "estimatedCalories": 250,
@@ -345,7 +400,10 @@ router.post('/analyze-text', auth, async (req, res) => {
   "carbs": 30,
   "fats": 8,
   "mealType": "desayuno/almuerzo/merienda/cena/colacion",
-  "tags": ["tag1", "tag2"]
+  "tags": ["tag1", "tag2"],
+  "warnings": [
+    "Si ves algún ingrediente problemático para el perfil del usuario, describilo acá. Si no hay nada, dejá el array vacío."
+  ]
 }
 
 Descripción del usuario: "${text.trim()}"
@@ -367,6 +425,12 @@ Estimá las calorías y macros aproximados según las porciones típicas. Si no 
       data = JSON.parse(cleaned);
     } catch (e) {
       return res.status(500).json({ message: 'Error al procesar la respuesta de la IA', raw: responseText });
+    }
+
+    const inferredIngredients = data.name ? [{ name: data.name }] : [];
+    const serverWarnings = checkRestrictions(inferredIngredients, userPrefs);
+    if (serverWarnings.length > 0) {
+      data.warnings = [...new Set([...(data.warnings || []), ...serverWarnings.map(w => `${w.type}: podría contener "${w.match}"`)])];
     }
 
     res.json(data);

@@ -51,8 +51,12 @@ router.post('/login', async (req, res) => {
 });
 
 router.get('/profile', auth, async (req, res) => {
-  const user = await User.findById(req.user._id).select('-password').populate('house');
-  res.json(user);
+  try {
+    const user = await User.findById(req.user._id).select('-password').populate('house');
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
 router.put('/profile', auth, async (req, res) => {
@@ -104,6 +108,40 @@ router.put('/link-partner', auth, async (req, res) => {
     await req.user.save();
     await partner.save();
     res.json({ message: 'Vinculación exitosa', partner });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/preferences', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('preferences');
+    res.json(user?.preferences || {});
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.put('/preferences', auth, async (req, res) => {
+  try {
+    const allowedFields = [
+      'dietType', 'dietGoal', 'dailyCalorieTarget', 'mealCount',
+      'allergies', 'intolerances', 'pathologies',
+      'dislikedFoods', 'favoriteFoods', 'cuisinePreferences',
+      'restrictions', 'notes'
+    ];
+    const update = {};
+    for (const field of allowedFields) {
+      if (req.body[field] !== undefined) {
+        update[`preferences.${field}`] = req.body[field];
+      }
+    }
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: update },
+      { new: true }
+    ).select('preferences');
+    res.json(user.preferences);
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
