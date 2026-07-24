@@ -129,6 +129,10 @@ Importante: Incluye las calorías aproximadas de CADA ingrediente segun la canti
 
     const warnings = checkRestrictions(recipeData.ingredients, userPrefs);
 
+    if (!recipeData.name || !recipeData.instructions) {
+      return res.status(500).json({ message: 'La IA generó una receta incompleta (sin nombre o instrucciones)', raw: recipeData });
+    }
+
     const recipe = await Recipe.create({
       ...recipeData,
       createdBy: req.user._id,

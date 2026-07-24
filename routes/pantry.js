@@ -2,6 +2,8 @@ import express from 'express';
 import PantryItem from '../models/PantryItem.js';
 import auth from '../middleware/auth.js';
 
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const router = express.Router();
 
 router.get('/', auth, async (req, res) => {
@@ -9,7 +11,7 @@ router.get('/', auth, async (req, res) => {
     const { category, search } = req.query;
     const filter = req.user.house ? { house: req.user.house } : { user: req.user._id };
     if (category) filter.category = category;
-    if (search) filter.name = { $regex: search, $options: 'i' };
+    if (search) filter.name = { $regex: escapeRegex(search), $options: 'i' };
     const items = await PantryItem.find(filter).sort({ category: 1, name: 1 });
     res.json(items);
   } catch (error) {
@@ -20,9 +22,12 @@ router.get('/', auth, async (req, res) => {
 router.post('/', auth, async (req, res) => {
   try {
     const { name, amount, unit, category, expiryDate, notes, caloriesPer100g } = req.body;
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ message: 'Nombre del ingrediente es requerido' });
+    }
     const scope = req.user.house ? { house: req.user.house } : { user: req.user._id };
     const key = req.user.house ? { house: req.user.house } : { user: req.user._id };
-    const existing = await PantryItem.findOne({ ...key, name: { $regex: `^${name}$`, $options: 'i' } });
+    const existing = await PantryItem.findOne({ ...key, name: { $regex: `^${escapeRegex(name)}$`, $options: 'i' } });
     if (existing) {
       existing.amount = (existing.amount || 0) + (amount || 0);
       if (unit) existing.unit = unit;

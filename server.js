@@ -51,6 +51,11 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Plan Alimentación API funcionando' });
 });
 
+app.use((err, req, res, next) => {
+  console.error('Error no manejado:', err);
+  res.status(500).json({ message: 'Error interno del servidor' });
+});
+
 const PORT = process.env.PORT || 5000;
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {

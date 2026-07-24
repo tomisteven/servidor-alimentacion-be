@@ -11,7 +11,7 @@ const router = express.Router();
 router.get('/', auth, async (req, res) => {
   try {
     const { start, end } = req.query;
-    const filter = req.user.house ? { house: req.user.house } : {};
+    const filter = req.user.house ? { house: req.user.house } : { house: null };
     if (start && end) {
       filter.date = { $gte: new Date(start), $lte: new Date(end) };
     }
@@ -33,7 +33,7 @@ router.get('/', auth, async (req, res) => {
 router.get('/:date', auth, async (req, res) => {
   try {
     const date = new Date(req.params.date);
-    const filter = req.user.house ? { date, house: req.user.house } : { date };
+    const filter = req.user.house ? { date, house: req.user.house } : { date, house: null };
     const plan = await MealPlan.findOne(filter).populate('desayuno almuerzo merienda cena');
     res.json(plan);
   } catch (error) {

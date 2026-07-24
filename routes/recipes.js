@@ -4,6 +4,8 @@ import auth from '../middleware/auth.js';
 
 const router = express.Router();
 
+const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 router.get('/', auth, async (req, res) => {
   try {
     const { mealType, tag, search } = req.query;
@@ -12,8 +14,8 @@ router.get('/', auth, async (req, res) => {
     if (tag) filter.tags = tag;
     if (search) {
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { name: { $regex: escapeRegex(search), $options: 'i' } },
+        { description: { $regex: escapeRegex(search), $options: 'i' } }
       ];
     }
     const recipes = await Recipe.find(filter).sort({ createdAt: -1 });
@@ -40,8 +42,14 @@ const calcTotalCalories = (ingredients) => {
 
 router.post('/', auth, async (req, res) => {
   try {
+    if (!req.body.name || !req.body.instructions) {
+      return res.status(400).json({ message: 'Nombre e instrucciones son requeridos' });
+    }
     const data = { ...req.body, createdBy: req.user._id };
     if (data.ingredients) {
+      if (!Array.isArray(data.ingredients)) {
+        return res.status(400).json({ message: 'Ingredientes debe ser un array' });
+      }
       data.calories = data.calories || calcTotalCalories(data.ingredients);
     }
     const recipe = await Recipe.create(data);
@@ -55,9 +63,12 @@ router.put('/:id', auth, async (req, res) => {
   try {
     const data = { ...req.body };
     if (data.ingredients) {
+      if (!Array.isArray(data.ingredients)) {
+        return res.status(400).json({ message: 'Ingredientes debe ser un array' });
+      }
       data.calories = data.calories || calcTotalCalories(data.ingredients);
     }
-    const recipe = await Recipe.findByIdAndUpdate(req.params.id, data, { new: true });
+    const recipe = await Recipe.findByIdAndUpdate(req.params.id, data, { new: true, runValidators: true });
     if (!recipe) return res.status(404).json({ message: 'Receta no encontrada' });
     res.json(recipe);
   } catch (error) {
